@@ -1,7 +1,8 @@
 // Server-side singleton: relayer, wallets and agents live here, never in the browser.
+import { keccak256, stringToHex, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { SupplierAgent } from "../../agents/supplier";
-import { generateStealthKeys } from "../../lib/stealth";
+import { generateStealthKeys, stealthKeysFromPrivs } from "../../lib/stealth";
 import { Relayer } from "../../relayer/relayer";
 import { chain, loadDeployments, relayerKeys, rpcUrl, type Deployments } from "../../script/config";
 import { seedVendorVault } from "../../script/seed";
@@ -35,16 +36,20 @@ export function getSession(): Promise<Session> {
 async function init(): Promise<Session> {
   const dep = loadDeployments();
   const relayer = new Relayer(chain, rpcUrl, relayerKeys(), dep);
-  const supplierKeys = generateStealthKeys();
+  // With DEMO_SEED every serverless instance derives the SAME supplier, vault and identity keys, so a burst
+  // handled by one instance is visible to the ledger handled by another. Without it, keys are random per process.
+  const seed = process.env.DEMO_SEED;
+  const priv = (label: string): Hex => (seed ? keccak256(stringToHex(`shade:${seed}:${label}`)) : generatePrivateKey());
+  const supplierKeys = seed ? stealthKeysFromPrivs(priv("supplier-spend"), priv("supplier-view")) : generateStealthKeys();
   const supplierAgent = new SupplierAgent({ listPrice: 12, floorPrice: 10.5, maxQty: 500 });
   const supplierWallet = new SupplierWallet(
-    chain, rpcUrl, supplierKeys, privateKeyToAccount(generatePrivateKey()), dep, relayer,
-    privateKeyToAccount(generatePrivateKey()),
+    chain, rpcUrl, supplierKeys, privateKeyToAccount(priv("supplier-sweep-vault")), dep, relayer,
+    privateKeyToAccount(priv("supplier-identity")),
   );
   const terms: Session["terms"] = [];
   const vendor = new VendorWallet({
-    vault: privateKeyToAccount(generatePrivateKey()),
-    identity: privateKeyToAccount(generatePrivateKey()),
+    vault: privateKeyToAccount(priv("vendor-vault")),
+    identity: privateKeyToAccount(priv("vendor-identity")),
     registry: { S1: { legalName: "Acme Fasteners Ltd", meta: supplierKeys.meta } },
     usualHandle: "S1",
     policy: { maxQty: 500, minUnitPrice: 8, maxUnitPrice: 15 },
@@ -59,9 +64,14 @@ async function init(): Promise<Session> {
     },
   });
   const startBlock = await relayer.publicClient.getBlockNumber();
-  await seedVendorVault(relayer, dep, vendor.vaultAddress, 1_000_000);
-  return { dep, relayer, supplierAgent, supplierWallet, vendor, startBlock, terms };
+  const session: Session = { dep, relayer, supplierAgent, supplierWallet, vendor, startBlock, terms };
+  await ensureVault(session); // seeds only when the (possibly pre-existing) vault is low
+  return session;
 }
+
+/** Rolling scan window (~10 min of blocks): keeps log scans small on the 100-block-capped public RPC. */
+export const SCAN_WINDOW = 1200n;
+export const scanFrom = (head: bigint) => (head > SCAN_WINDOW ? head - SCAN_WINDOW : 0n);
 
 /** Decoys burn vault tokens: top up (mock tokens) before a burst if low. */
 export async function ensureVault(s: Session, min = 400_000n * 10n ** 18n) {

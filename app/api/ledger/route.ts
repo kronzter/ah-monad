@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { formatUnits, parseAbiItem } from "viem";
 import { chunkedLogs } from "../../../lib/logs";
-import { getSession } from "../../server/session";
+import { getSession, scanFrom } from "../../server/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function GET() {
           fromBlock: from,
           toBlock: to,
         }),
-      s.startBlock,
+      scanFrom(head),
       head,
     );
     logs.sort((a, b) => Number(a.blockNumber! - b.blockNumber!) || (a.logIndex! - b.logIndex!));
@@ -46,7 +46,7 @@ export async function GET() {
       to: l.args.to!,
       amount: formatUnits(l.args.value!, 18),
     }));
-    const found = await s.supplierWallet.scan(s.startBlock);
+    const found = await s.supplierWallet.scan(scanFrom(head));
     return NextResponse.json({
       rows,
       total: logs.length,

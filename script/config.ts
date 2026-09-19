@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { readFileSync, existsSync } from "node:fs";
+import monadTestnetDeployment from "../deployments/monad-testnet.json";
 import { defineChain, type Address, type Chain, type Hex } from "viem";
 import { foundry, monadTestnet } from "viem/chains";
 
@@ -36,7 +37,15 @@ export interface Deployments {
   settlement: Address;
 }
 
-export function loadDeployments(path = `deployments.${NETWORK}.json`): Deployments {
-  if (!existsSync(path)) throw new Error(`${path} missing, run script/deploy.ts`);
+/**
+ * Monad testnet addresses are committed (deployments/monad-testnet.json) and statically imported so
+ * hosted builds do not depend on filesystem reads. Local anvil deployments go to deployments/local.json.
+ */
+export function loadDeployments(): Deployments {
+  if (NETWORK === "monad-testnet") return monadTestnetDeployment as Deployments;
+  const path = "deployments/local.json";
+  if (!existsSync(path)) throw new Error(`${path} missing, run: pnpm deploy:contracts`);
   return JSON.parse(readFileSync(path, "utf8"));
 }
+
+export const deploymentPath = () => `deployments/${NETWORK === "monad-testnet" ? "monad-testnet" : "local"}.json`;

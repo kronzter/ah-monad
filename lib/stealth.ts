@@ -48,6 +48,11 @@ export function generateStealthKeys(): StealthKeys {
   return { spendPriv, viewPriv, meta: { spendPub: pubOf(spendPriv), viewPub: pubOf(viewPriv) } };
 }
 
+/** Rebuild a full key set from two private keys (deterministic identities, e.g. derived from a seed). */
+export function stealthKeysFromPrivs(spendPriv: Hex, viewPriv: Hex): StealthKeys {
+  return { spendPriv, viewPriv, meta: { spendPub: pubOf(spendPriv), viewPub: pubOf(viewPriv) } };
+}
+
 /** Sender side: derive a fresh one-time address for `meta`. */
 export function generateStealthPayment(meta: StealthMetaAddress): StealthPayment {
   const ephPriv = bytesToHex(secp256k1.utils.randomSecretKey());

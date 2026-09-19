@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { guarded, requireRelayerFunds } from "../../server/guard";
 import { ensureVault, getSession } from "../../server/session";
 
 export const runtime = "nodejs";
@@ -13,10 +14,12 @@ const REAL = [
 ];
 
 export async function POST(req: Request) {
-  try {
+  return guarded("burst", 20_000, async () => {
     const { decoys = 50 } = (await req.json().catch(() => ({}))) as { decoys?: number };
-    const n = Math.max(0, Math.min(120, Math.floor(decoys)));
+    const n = Math.max(0, Math.min(60, Math.floor(decoys)));
     const s = await getSession();
+    const low = await requireRelayerFunds(s);
+    if (low) return low;
     await ensureVault(s);
     s.terms.push(...REAL.map((r) => ({ qty: r.qty, unitPrice: r.unitPrice })));
     const t0 = Date.now();
@@ -33,7 +36,5 @@ export async function POST(req: Request) {
         broadcastMs: o.result.broadcastMs,
       })),
     });
-  } catch (e) {
-    return NextResponse.json({ error: String((e as Error).message) }, { status: 500 });
-  }
+  });
 }

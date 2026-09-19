@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { createPublicClient, createWalletClient, http, type Abi, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { NETWORK, chain, relayerKeys, rpcUrl, type Deployments } from "./config";
+import { chain, deploymentPath, relayerKeys, rpcUrl, type Deployments } from "./config";
 
 const artifact = (name: string): { abi: Abi; bytecode: Hex } => {
   const j = JSON.parse(readFileSync(`contracts/out/${name}.sol/${name}.json`, "utf8"));
@@ -27,7 +27,7 @@ async function main() {
   const settlement = await deploy("Settlement", [token, announcer]);
 
   const dep: Deployments = { chainId: chain.id, token, announcer, settlement };
-  const path = `deployments.${NETWORK}.json`;
+  const path = deploymentPath();
   writeFileSync(path, JSON.stringify(dep, null, 2));
   console.log(`wrote ${path}`);
 }

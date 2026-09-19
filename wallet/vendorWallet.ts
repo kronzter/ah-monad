@@ -130,9 +130,17 @@ export class VendorWallet {
     };
   }
 
-  async pay(handle: string, qty: number, unitPrice: number): Promise<PayReceipt> {
+  /** onStep lets a UI narrate the plain-code work. It receives labels and timings only, never keys or addresses. */
+  async pay(
+    handle: string,
+    qty: number,
+    unitPrice: number,
+    onStep?: (step: "signed" | "confirmed", info?: { latencyMs: number; txHash: Hex }) => void,
+  ): Promise<PayReceipt> {
     const item = await this.prepare(handle, qty, unitPrice);
+    onStep?.("signed");
     const res = await this.cfg.relayer.submitIntent(item.intent, item.sig);
+    onStep?.("confirmed", { latencyMs: res.latencyMs, txHash: res.hash });
     this.#record(item, res);
     return { handle, qty, unitPrice, status: res.ok ? "settled" : "failed", txHash: res.hash };
   }

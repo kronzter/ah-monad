@@ -46,7 +46,7 @@ before the deadline.
 | t | Shot | Voice-over |
 |---|---|---|
 | 0–5 s | Shade masthead | "Public chains leak your supplier graph." |
-| 5–20 s | Act I: type the request, negotiation log scrolls, tx link | "Two agents negotiate. The payment settles live on Monad." |
+| 5–20 s | Act I: type the request, agent chat bubbles stream in, tx link | "Two agents negotiate. The payment settles live on Monad." |
 | 20–35 s | Act II: fire burst, bars grow, ledger fills | "Three real payments hidden among fifty decoys." |
 | 35–45 s | Click **Declassify**: 3 rows light up amber | "Only the supplier's key can tell which are theirs." |
 | 45–55 s | Act III: injection replies, `0 leaked` stamps | "A prompt injection gets nothing. The model never held the data." |

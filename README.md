@@ -64,7 +64,7 @@ cp .env.example .env        # set RELAYER_PKS (funded testnet key, >10 MON) and 
 pnpm dev                    # http://localhost:3000
 ```
 
-In the UI: **I. Run negotiation** (two agents settle a deal, on-chain) → **II. Fire burst** (3 real payments among
+In the UI: **I. Start the conversation** (two LLM agents haggle live in a chat, then settle on-chain) → **II. Fire burst** (3 real payments among
 decoys) → **III. Run injection** (competitor tries to extract the supplier graph) → **Declassify with supplier key**
 in the ledger to see which rows only the supplier's view key can prove.
 

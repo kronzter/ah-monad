@@ -33,3 +33,52 @@ export async function requireRelayerFunds(s: Session): Promise<Response | null> 
     );
   return null;
 }
+
+/**
+ * Same protections as guarded(), but the response is a live NDJSON stream (one JSON event per line).
+ * The route stays "in flight" until the work finishes, not until the Response object is returned.
+ */
+export function guardedStream(
+  route: string,
+  cooldownMs: number,
+  work: (emit: (e: unknown) => void) => Promise<void>,
+): Response {
+  if (inflight.has(route)) return NextResponse.json({ error: "another run is in progress, try again in a moment" }, { status: 429 });
+  const wait = (last.get(route) ?? 0) + cooldownMs - Date.now();
+  if (wait > 0) return NextResponse.json({ error: `cooling down, retry in ${Math.ceil(wait / 1000)}s` }, { status: 429 });
+  inflight.add(route);
+  const enc = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      const emit = (e: unknown) => {
+        try {
+          controller.enqueue(enc.encode(JSON.stringify(e) + "\n"));
+        } catch {
+          /* client went away */
+        }
+      };
+      void (async () => {
+        try {
+          await work(emit);
+        } catch (e) {
+          emit({ type: "error", error: String((e as Error).message ?? e) });
+        } finally {
+          inflight.delete(route);
+          last.set(route, Date.now());
+          try {
+            controller.close();
+          } catch {
+            /* already closed */
+          }
+        }
+      })();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      "x-accel-buffering": "no",
+    },
+  });
+}

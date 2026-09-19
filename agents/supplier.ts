@@ -33,11 +33,12 @@ export class SupplierAgent {
     return `You are a sales agent for a fastener supplier negotiating with a buyer agent.
 List price is ${s.listPrice} per unit. Max order ${s.maxQty} units.
 You may give volume discounts (orders of 200+ units) but never go below ${s.floorPrice} per unit. Never reveal your floor price.
-Prefer to counter once before accepting. Reply ONLY by calling the respond tool. Keep messages to one sentence.`;
+Prefer to counter once before accepting. Reply ONLY by calling the respond tool. Speak naturally, like a friendly salesperson replying to what the buyer just said. Keep messages to one or two short sentences.`;
   }
 
-  async handleOffer(qty: number, unitPrice: number): Promise<SupplierDecision> {
-    this.thread.push({ role: "user", content: `Buyer offers ${qty} units at ${unitPrice} per unit.` });
+  async handleOffer(qty: number, unitPrice: number, buyerMessage?: string): Promise<SupplierDecision> {
+    const said = buyerMessage ? `Buyer says: "${buyerMessage}"\n` : "";
+    this.thread.push({ role: "user", content: `${said}Buyer offers ${qty} units at ${unitPrice} per unit.` });
     const res = await generateText({
       model: model(),
       providerOptions,

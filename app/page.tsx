@@ -1,11 +1,17 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const EXPLORER = "https://testnet.monadvision.com";
 
 interface Info { chainId: number; settlement: string; relayer: string; model: string }
-interface Ev { kind: "offer" | "supplier" | "settle"; text: string }
-interface Neg { text: string; events: Ev[]; receipt: { qty: number; unitPrice: number; status: string; txHash: string } | null }
+interface Msg {
+  id: number;
+  from: "user" | "vendor" | "supplier" | "wallet";
+  text: string;
+  tag?: string;
+  tone?: "ok" | "warn";
+  txHash?: string;
+}
 interface Tx { hash: string; ok: boolean; block: string; latencyMs: number; broadcastMs: number }
 interface Flood { wallMs: number; txs: Tx[] }
 interface Atk { payload: string; reply: string; leaked: string[] }
@@ -42,7 +48,12 @@ export default function Page() {
   const [declass, setDeclass] = useState(false);
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [ledgerBusy, setLedgerBusy] = useState(false);
-  const neg = useAct<Neg>();
+  const [chat, setChat] = useState<Msg[]>([]);
+  const [typing, setTyping] = useState<"vendor" | "supplier" | "wallet" | null>(null);
+  const [negBusy, setNegBusy] = useState(false);
+  const [negErr, setNegErr] = useState<string | null>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLElement>(null);
   const flood = useAct<Flood>();
   const atk = useAct<{ results: Atk[] }>();
 
@@ -54,6 +65,56 @@ export default function Page() {
   }, []);
 
   useEffect(() => { if (info) refresh(); }, [info, refresh]);
+
+  useEffect(() => {
+    const t = threadRef.current;
+    if (t) t.scrollTo({ top: t.scrollHeight, behavior: "smooth" });
+  }, [chat, typing]);
+
+  /** Reads the NDJSON stream and appends each agent message the moment it happens. */
+  const runNegotiation = useCallback(async () => {
+    setNegBusy(true); setNegErr(null); setTyping(null);
+    let id = 0;
+    setChat([{ id: id++, from: "user", text: request }]);
+    setTimeout(() => stageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    const push = (m: Omit<Msg, "id">) => setChat((c) => [...c, { ...m, id: id++ }]);
+    try {
+      const r = await fetch("/api/negotiate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ request }) });
+      if (!r.ok || !r.body) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? r.statusText);
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          const ev = JSON.parse(line);
+          if (ev.type === "typing") setTyping(ev.who);
+          else if (ev.type === "say") { setTyping(null); push({ from: ev.from, text: ev.text, tag: ev.tag, tone: ev.tone, txHash: ev.txHash }); }
+          else if (ev.type === "done") { setTyping(null); push({ from: "vendor", text: ev.text, tag: "REPORT TO USER" }); }
+          else if (ev.type === "error") setNegErr(ev.error);
+        }
+      }
+    } catch (e) {
+      setNegErr((e as Error).message);
+    } finally {
+      setNegBusy(false); setTyping(null); refresh();
+    }
+  }, [request, refresh]);
+
+  const autoran = useRef(false);
+  useEffect(() => {
+    // ?autorun starts the conversation on load (handy for screenshots and screen recordings)
+    if (info && !autoran.current && new URLSearchParams(window.location.search).has("autorun")) {
+      autoran.current = true;
+      void runNegotiation();
+    }
+  }, [info, runNegotiation]);
 
   const stats = useMemo(() => {
     const rows = ledger?.rows ?? [];
@@ -93,25 +154,11 @@ export default function Page() {
           <h2>Two agents, one deal</h2>
           <p className="sub">The LLM only knows handles like S1. Names, keys and stealth meta-addresses stay in plain wallet code.</p>
           <textarea rows={2} value={request} onChange={(e) => setRequest(e.target.value)} />
-          <button className="btn" disabled={neg.busy || !info} onClick={() => neg.run(async () => { const r = await call<Neg>("/api/negotiate", { request }); refresh(); return r; })}>
-            {neg.busy ? "negotiating…" : "Run negotiation"}
+          <button className="btn" disabled={negBusy || !info} onClick={runNegotiation}>
+            {negBusy ? "agents talking…" : "Start the conversation"}
           </button>
-          {neg.err && <div className="err">{neg.err}</div>}
-          {neg.data && (
-            <div className="log">
-              {neg.data.events.map((e, i) => (
-                <div key={i} className={`ev ${e.kind}`} style={{ animationDelay: `${i * 70}ms` }}>
-                  <span className="who">{e.kind === "offer" ? "vendor →" : e.kind === "supplier" ? "← supplier" : "wallet"}</span>
-                  <span className="what">{e.text}</span>
-                </div>
-              ))}
-              <div className="ev"><span className="who">agent</span><span className="what">{neg.data.text}</span></div>
-              {neg.data.receipt && (
-                <div className="ev settle"><span className="who">tx</span>
-                  <span className="what"><a href={`${EXPLORER}/tx/${neg.data.receipt.txHash}`} target="_blank">{short(neg.data.receipt.txHash)}</a></span></div>
-              )}
-            </div>
-          )}
+          <p className="sub">The live chat opens below ↓</p>
+          {negErr && <div className="err">{negErr}</div>}
         </div>
 
         <div className="act">
@@ -163,6 +210,42 @@ export default function Page() {
           )}
         </div>
       </section>
+
+      {(chat.length > 0 || negBusy) && (
+        <section className="stage" ref={stageRef}>
+          <div className="stage-head">
+            <h2>The negotiation, <em>live.</em></h2>
+            <div className="lanes">
+              <span className="lane-v">◄ vendor agent · LLM · sees handles, qty, price only</span>
+              <span className="lane-s">supplier agent · LLM · sees only its own price sheet ►</span>
+            </div>
+          </div>
+          <div className="thread" ref={threadRef}>
+            {chat.map((m) =>
+              m.from === "user" ? (
+                <div key={m.id} className="msg user"><span className="mtag">HUMAN REQUEST</span><p>{m.text}</p></div>
+              ) : m.from === "wallet" ? (
+                <div key={m.id} className={`msg wallet ${m.tone ?? ""}`}>
+                  <span className="wtag">wallet module · plain code, no LLM</span>
+                  <span>{m.text}</span>
+                  {m.txHash && <a href={`${EXPLORER}/tx/${m.txHash}`} target="_blank"> view tx {short(m.txHash)} ↗</a>}
+                </div>
+              ) : (
+                <div key={m.id} className={`msg ${m.from} ${m.tone ?? ""}`}>
+                  <span className="mtag">{m.from === "vendor" ? "VENDOR AGENT" : "SUPPLIER AGENT"}{m.tag ? ` · ${m.tag}` : ""}</span>
+                  <p>{m.text}</p>
+                </div>
+              ),
+            )}
+            {typing && (
+              <div className={`msg ${typing} typing`}>
+                <span className="mtag">{typing === "vendor" ? "VENDOR AGENT" : typing === "supplier" ? "SUPPLIER AGENT" : "WALLET"} is {typing === "wallet" ? "working" : "typing"}</span>
+                <p><i /><i /><i /></p>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="ledger">
         <div className="ledger-head">

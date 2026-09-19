@@ -6,7 +6,8 @@ import { foundry, monadTestnet } from "viem/chains";
 
 export type Network = "local" | "monad-testnet";
 
-export const NETWORK = (process.env.NETWORK ?? "local") as Network;
+// On Vercel there is no local chain: default to Monad testnet so a missing NETWORK var cannot break the deploy.
+export const NETWORK = (process.env.NETWORK ?? (process.env.VERCEL ? "monad-testnet" : "local")) as Network;
 
 export const chain: Chain =
   NETWORK === "monad-testnet"

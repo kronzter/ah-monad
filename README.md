@@ -33,10 +33,15 @@ Addresses are also in [`deployments/monad-testnet.json`](deployments/monad-testn
    quantities and prices (`{handle: "S1", qty: 200}`). Supplier identities, meta-addresses, keys and payment
    history live in plain wallet code the model cannot reach, so a prompt injection has nothing to exfiltrate.
    Policy (known handles, price band, quantity cap, "pay only what the supplier accepted") is enforced in code.
-4. **Payments bind to invoices.** The agreed invoice (qty, unit price, total, terms, nonce — no identities) is
+4. **Negotiation runs on explicit criteria, enforced in code.** The supplier's pricing engine (volume tiers, a
+   confidential margin floor, a scheduled concession curve, a 2% instant-on-chain-settlement lever, a round limit)
+   decides accept / counter / reject and the numbers; the LLM only voices it. The buyer agent has a target, a hard
+   ceiling, a max concession per round and a never-bid-above-their-ask rule, blocked by the tool, not by hope. The
+   UI's deal room charts bids and asks converging and scores the deal against every criterion.
+5. **Payments bind to invoices.** The agreed invoice (qty, unit price, total, terms, nonce — no identities) is
    hashed; both parties sign it off-chain; only the hash goes on-chain (`invoices[hash]`), so an auditor can
    later reveal the JSON to prove a payment matches an agreement.
-5. **Monad throughput makes decoys real.** Decoys are full fake payments through the same code path (random
+6. **Monad throughput makes decoys real.** Decoys are full fake payments through the same code path (random
    recipient, random invoice, in-range amount) fired concurrently with real ones. Real and decoy logs are
    identical, so a scraper sees one relayer paying strangers.
 
@@ -75,6 +80,20 @@ Checks: `pnpm test:contracts` (8 Foundry tests), `pnpm test` (stealth crypto), `
 
 Deploy your own copy: `pnpm build:contracts && NETWORK=monad-testnet pnpm deploy:contracts`, then
 `pnpm verify:contracts` (publishes source to MonadVision and Monadscan through Monad's verification API).
+
+## Deploy to Vercel (CLI)
+
+```bash
+npm i -g vercel@latest && vercel login
+pnpm vercel:setup     # link the folder to a Vercel project
+pnpm vercel:env       # copies NETWORK, RELAYER_PKS, DEEPSEEK_*, DEMO_SEED (and optional RPC_URL) from .env to production
+pnpm deploy:vercel    # production deploy, prints the URL
+```
+
+`DEMO_SEED` must be set on Vercel: it makes the supplier and vault identities identical on every serverless
+instance. The relayer key you set there pays testnet gas for anyone using the public demo, so use a
+dedicated testnet-only key. Expensive routes are rate-limited and refuse bursts if the relayer drops below
+`MIN_RELAYER_MON`.
 
 ## Measured results (Monad testnet)
 

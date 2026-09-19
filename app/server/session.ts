@@ -1,6 +1,7 @@
 // Server-side singleton: relayer, wallets and agents live here, never in the browser.
 import { keccak256, stringToHex, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { DEFAULT_SELLER } from "../../agents/negotiation";
 import { SupplierAgent } from "../../agents/supplier";
 import { generateStealthKeys, stealthKeysFromPrivs } from "../../lib/stealth";
 import { Relayer } from "../../relayer/relayer";
@@ -41,7 +42,7 @@ async function init(): Promise<Session> {
   const seed = process.env.DEMO_SEED;
   const priv = (label: string): Hex => (seed ? keccak256(stringToHex(`shade:${seed}:${label}`)) : generatePrivateKey());
   const supplierKeys = seed ? stealthKeysFromPrivs(priv("supplier-spend"), priv("supplier-view")) : generateStealthKeys();
-  const supplierAgent = new SupplierAgent({ listPrice: 12, floorPrice: 10.5, maxQty: 500 });
+  const supplierAgent = new SupplierAgent(DEFAULT_SELLER);
   const supplierWallet = new SupplierWallet(
     chain, rpcUrl, supplierKeys, privateKeyToAccount(priv("supplier-sweep-vault")), dep, relayer,
     privateKeyToAccount(priv("supplier-identity")),

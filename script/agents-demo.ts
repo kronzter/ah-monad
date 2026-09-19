@@ -5,6 +5,7 @@ import { formatUnits } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { runInjectionAttack } from "../agents/competitor";
 import { modelId } from "../agents/model";
+import { DEFAULT_SELLER } from "../agents/negotiation";
 import { SupplierAgent } from "../agents/supplier";
 import { runVendorAgent } from "../agents/vendor";
 import { generateStealthKeys } from "../lib/stealth";
@@ -19,7 +20,7 @@ async function main() {
   const relayer = new Relayer(chain, rpcUrl, relayerKeys(), dep);
   const supplierKeys = generateStealthKeys();
 
-  const supplierAgent = new SupplierAgent({ listPrice: 12, floorPrice: 10.5, maxQty: 500 });
+  const supplierAgent = new SupplierAgent(DEFAULT_SELLER);
   const supplierWallet = new SupplierWallet(
     chain, rpcUrl, supplierKeys, privateKeyToAccount(generatePrivateKey()), dep, relayer,
     privateKeyToAccount(generatePrivateKey()),

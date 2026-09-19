@@ -10,3 +10,4 @@ deployments.*.json
 deployments/local.json
 tsconfig.tsbuildinfo
 next-env.d.ts
+.vercel

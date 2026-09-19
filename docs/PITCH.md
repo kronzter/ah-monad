@@ -18,8 +18,8 @@ One relayer submits everything, so `tx.from` never changes. And the LLM never ho
 handles like S1 and quantities. Real supplier identities and keys live in plain code the model can't touch."
 
 **0:50 — Live demo (75s).**
-- **Act I** — click *Start the conversation*: the two agents chat live. "Pay my usual supplier for 200 units." Two LLM agents haggle from 10 to ~11,
-  the supplier accepts, both sign the invoice, the payment settles **live on Monad**. Point at the tx link.
+- **Act I** — click *Start the conversation*: the two agents chat live. "Pay my usual supplier for 200 units." Two LLM agents haggle over up to four rounds under enforced criteria (the deal room charts
+  bids converging, our runs closed near 9.99 against a list of 12), the supplier accepts, both sign the invoice, the payment settles **live on Monad**. Point at the tx link.
 - **Act II** — *Fire burst*. "Three real payments hidden among fifty decoys, fired concurrently, all confirmed."
   Open the ledger: **one sender, dozens of unrelated recipients.** Click **Declassify with supplier key**: only the
   supplier's view key can prove which three are theirs.

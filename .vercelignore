@@ -1,0 +1,7 @@
+# not needed to build or run the hosted app (deployments/monad-testnet.json IS needed and is kept)
+contracts/
+docs/
+.env
+.env.*
+!.env.example
+deployments/local.json

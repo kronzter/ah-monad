@@ -14,7 +14,10 @@
     "verify:contracts": "bash script/verify.sh",
     "demo": "tsx script/demo.ts",
     "demo:agents": "tsx script/agents-demo.ts",
-    "latency": "tsx script/latency.ts"
+    "latency": "tsx script/latency.ts",
+    "vercel:setup": "bash script/vercel.sh setup",
+    "vercel:env": "bash script/vercel.sh env",
+    "deploy:vercel": "bash script/vercel.sh deploy"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^3.0.49",
@@ -37,5 +40,9 @@
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   },
-  "description": "Shade: private settlement rail for autonomous agent commerce on Monad"
+  "description": "Shade: private settlement rail for autonomous agent commerce on Monad",
+  "packageManager": "pnpm@10.30.1",
+  "engines": {
+    "node": ">=20"
+  }
 }

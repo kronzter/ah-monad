@@ -12,6 +12,9 @@ interface Msg {
   tone?: "ok" | "warn";
   txHash?: string;
 }
+interface Room { buyer: { target: number; ceiling: number; maxRounds: number; maxStepPct: number }; seller: { floor: number; list: number; maxRounds: number } }
+interface Rnd { round: number; qty: number; offer: number; ask?: number; decision: string; tier: number }
+interface Deal { price: number; qty: number; list: number; savingsPct: number; checks: { ok: boolean; label: string }[] }
 interface Tx { hash: string; ok: boolean; block: string; latencyMs: number; broadcastMs: number }
 interface Flood { wallMs: number; txs: Tx[] }
 interface Atk { payload: string; reply: string; leaked: string[] }
@@ -40,6 +43,43 @@ function useAct<T>() {
   return { data, busy, err, run };
 }
 
+
+/** Operator view: bids and asks converging inside the deal zone. Neither agent sees the other side's numbers. */
+function Convergence({ room, rounds, deal }: { room: Room; rounds: Rnd[]; deal: Deal | null }) {
+  const W = 340, H = 230, L = 38, R = 12, T = 16, B = 26;
+  const n = Math.max(room.buyer.maxRounds, 2);
+  const all = [room.seller.floor, room.buyer.ceiling, room.seller.list, ...rounds.flatMap((r) => [r.offer, r.ask ?? r.offer])];
+  const lo = Math.min(...all) - 0.35, hi = Math.max(...all) + 0.25;
+  const x = (r: number) => L + ((r - 1) / (n - 1)) * (W - L - R);
+  const y = (v: number) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const offers = rounds.map((r) => `${x(r.round)},${y(r.offer)}`).join(" ");
+  const asks = rounds.filter((r) => r.ask !== undefined).map((r) => `${x(r.round)},${y(r.ask!)}`).join(" ");
+  const zoneTop = y(room.buyer.ceiling), zoneBot = y(room.seller.floor);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Offers and asks converging over rounds">
+      <rect x={L} y={zoneTop} width={W - L - R} height={Math.max(0, zoneBot - zoneTop)} className="zone" />
+      <line x1={L} x2={W - R} y1={zoneTop} y2={zoneTop} className="ln ceil" />
+      <line x1={L} x2={W - R} y1={zoneBot} y2={zoneBot} className="ln floor" />
+      <line x1={L} x2={W - R} y1={y(room.buyer.target)} y2={y(room.buyer.target)} className="ln target" />
+      <text x={W - R} y={zoneTop - 4} className="lab" textAnchor="end">buyer ceiling {room.buyer.ceiling}</text>
+      <text x={W - R} y={zoneBot + 11} className="lab" textAnchor="end">supplier floor {room.seller.floor}</text>
+      <text x={L + 4} y={y(room.buyer.target) - 3} className="lab dim">target {room.buyer.target}</text>
+      {Array.from({ length: n }, (_, i) => (
+        <text key={i} x={x(i + 1)} y={H - 8} className="lab" textAnchor="middle">R{i + 1}</text>
+      ))}
+      {asks && <polyline points={asks} className="pl ask" />}
+      {offers && <polyline points={offers} className="pl bid" />}
+      {rounds.map((r) => (
+        <g key={r.round}>
+          {r.ask !== undefined && <circle cx={x(r.round)} cy={y(r.ask)} r={4} className="pt ask" />}
+          <circle cx={x(r.round)} cy={y(r.offer)} r={4} className="pt bid" />
+        </g>
+      ))}
+      {deal && rounds.length > 0 && <circle cx={x(rounds[rounds.length - 1].round)} cy={y(deal.price)} r={9} className="pt deal" />}
+    </svg>
+  );
+}
+
 export default function Page() {
   const [info, setInfo] = useState<Info | null>(null);
   const [infoErr, setInfoErr] = useState<string | null>(null);
@@ -48,6 +88,9 @@ export default function Page() {
   const [declass, setDeclass] = useState(false);
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [ledgerBusy, setLedgerBusy] = useState(false);
+  const [room, setRoom] = useState<Room | null>(null);
+  const [rounds, setRounds] = useState<Rnd[]>([]);
+  const [deal, setDeal] = useState<Deal | null>(null);
   const [chat, setChat] = useState<Msg[]>([]);
   const [typing, setTyping] = useState<"vendor" | "supplier" | "wallet" | null>(null);
   const [negBusy, setNegBusy] = useState(false);
@@ -73,7 +116,7 @@ export default function Page() {
 
   /** Reads the NDJSON stream and appends each agent message the moment it happens. */
   const runNegotiation = useCallback(async () => {
-    setNegBusy(true); setNegErr(null); setTyping(null);
+    setNegBusy(true); setNegErr(null); setTyping(null); setRoom(null); setRounds([]); setDeal(null);
     let id = 0;
     setChat([{ id: id++, from: "user", text: request }]);
     setTimeout(() => stageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -97,6 +140,9 @@ export default function Page() {
           if (ev.type === "typing") setTyping(ev.who);
           else if (ev.type === "say") { setTyping(null); push({ from: ev.from, text: ev.text, tag: ev.tag, tone: ev.tone, txHash: ev.txHash }); }
           else if (ev.type === "done") { setTyping(null); push({ from: "vendor", text: ev.text, tag: "REPORT TO USER" }); }
+          else if (ev.type === "room") setRoom(ev);
+          else if (ev.type === "round") setRounds((r) => [...r, ev]);
+          else if (ev.type === "deal") setDeal(ev);
           else if (ev.type === "error") setNegErr(ev.error);
         }
       }
@@ -220,6 +266,7 @@ export default function Page() {
               <span className="lane-s">supplier agent · LLM · sees only its own price sheet ►</span>
             </div>
           </div>
+          <div className="stage-grid">
           <div className="thread" ref={threadRef}>
             {chat.map((m) =>
               m.from === "user" ? (
@@ -243,6 +290,30 @@ export default function Page() {
                 <p><i /><i /><i /></p>
               </div>
             )}
+          </div>
+          {room && (
+            <aside className="room">
+              <h3>Deal room <span>operator view</span></h3>
+              <p className="sub">Neither agent sees the other side's numbers. Code enforces both sides' criteria.</p>
+              <Convergence room={room} rounds={rounds} deal={deal} />
+              <div className="legend"><span className="k bid" />buyer bids <span className="k ask" />supplier asks <span className="k zn" />deal zone</div>
+              <ul className="crit">
+                <li><b>Buyer</b> target {room.buyer.target} · ceiling {room.buyer.ceiling} · max +{room.buyer.maxStepPct}%/round · {room.buyer.maxRounds} rounds</li>
+                <li><b>Supplier</b> list {room.seller.list} · volume tiers · 2% instant-settlement lever · concession curve · margin floor</li>
+              </ul>
+              {deal && (
+                <div className="score">
+                  <div className="kpi"><b>{deal.price}</b><span>final unit price</span></div>
+                  <div className="kpi"><b>{deal.savingsPct}%</b><span>below list ({deal.list})</span></div>
+                  <ul>
+                    {deal.checks.map((c, i) => (
+                      <li key={i} className={c.ok ? "ok" : "bad"} style={{ animationDelay: `${i * 90}ms` }}>{c.ok ? "✓" : "✗"} {c.label}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </aside>
+          )}
           </div>
         </section>
       )}

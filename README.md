@@ -7,7 +7,7 @@
 
 | | |
 |---|---|
-| **Live demo** | `LIVE_URL` https://ah-monad-space.vercel.app/
+| **Live demo** | `LIVE_URL` <https://ah-monad-space.vercel.app/>
 
  |
 | **Repo** | https://github.com/kronzter/ah-monad |

@@ -7,12 +7,10 @@
 
 | | |
 |---|---|
-| **Live demo** | `LIVE_URL` <https://ah-monad-space.vercel.app/>
-
- |
-| **Repo** | https://github.com/kronzter/ah-monad |
-| **Network** | Monad Testnet (chain id `10143`) |
-| **Contracts** | verified on MonadVision and Monadscan (table below) |
+| **Live Demo** | [https://ah-monad-space.vercel.app/](https://ah-monad-space.vercel.app/) |
+| **Repository** | [https://github.com/kronzter/ah-monad](https://github.com/kronzter/ah-monad) |
+| **Network** | Monad Testnet — Chain ID `10143` |
+| **Contracts** | Verified on MonadVision and Monadscan |
 
 ## Deployed contracts (Monad Testnet, source verified)
 

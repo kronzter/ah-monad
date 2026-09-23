@@ -7,7 +7,9 @@
 
 | | |
 |---|---|
-| **Live demo** | `LIVE_URL` <!-- replace with the hosted URL --> |
+| **Live demo** | `LIVE_URL` https://ah-monad-space.vercel.app/
+
+ |
 | **Repo** | https://github.com/kronzter/ah-monad |
 | **Network** | Monad Testnet (chain id `10143`) |
 | **Contracts** | verified on MonadVision and Monadscan (table below) |
